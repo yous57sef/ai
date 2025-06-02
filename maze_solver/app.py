@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib.colors import ListedColormap
 import networkx as nx
 from matplotlib.animation import FuncAnimation
-from maze_solver.generator import generate_maze
+from generator import generate_maze
 from algorithms.dfs import dfs_solver
 from algorithms.bfs import bfs_solver
 from algorithms.astar import astar_solver
@@ -113,7 +113,7 @@ with st.sidebar:
         "Nombre d'images",
         min_value=10,
         max_value=60,
-        value=30,
+        value=60,
         help="Plus d'images = plus fluide mais plus lent"
     )
     
