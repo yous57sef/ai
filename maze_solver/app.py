@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib.colors import ListedColormap
 import networkx as nx
 from matplotlib.animation import FuncAnimation
-from generator import generate_maze
+from maze_solver.generator import generate_maze
 from algorithms.dfs import dfs_solver
 from algorithms.bfs import bfs_solver
 from algorithms.astar import astar_solver
