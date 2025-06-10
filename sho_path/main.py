@@ -146,40 +146,116 @@ def load_algeria_map():
         return create_simplified_network()
 
 def create_simplified_network():
-    """Create a simplified network connecting major Algerian cities"""
+    """Create a comprehensive network connecting all Algerian cities"""
     G = nx.Graph()
     
     # Add cities as nodes
     for city, (lat, lon) in ALGERIAN_CITIES.items():
         G.add_node(city, x=lon, y=lat)
     
-    # Add edges based on realistic connections (simplified road network)
+    # Calculate actual distances between all city pairs and create comprehensive connections
+    def calculate_distance(city1, city2):
+        lat1, lon1 = ALGERIAN_CITIES[city1]
+        lat2, lon2 = ALGERIAN_CITIES[city2]
+        return geodesic((lat1, lon1), (lat2, lon2)).kilometers
+    
+    # Create a more comprehensive network with realistic connections
+    # Major highways and road connections in Algeria
     connections = [
+        # East-West Highway (A1) connections
         ('Algiers', 'Blida', 50),
-        ('Algiers', 'Médéa', 88),
-        ('Algiers', 'Tizi Ouzou', 100),
-        ('Algiers', 'Béjaïa', 200),
-        ('Oran', 'Sidi Bel Abbès', 75),
-        ('Oran', 'Tlemcen', 170),
-        ('Oran', 'Mostaganem', 80),
-        ('Constantine', 'Sétif', 120),
+        ('Blida', 'Médéa', 60),
+        ('Médéa', 'Djelfa', 120),
+        ('Djelfa', 'Batna', 180),
+        ('Batna', 'Constantine', 110),
         ('Constantine', 'Annaba', 180),
-        ('Constantine', 'Batna', 180),
-        ('Sétif', 'Béjaïa', 100),
-        ('Sétif', 'Batna', 130),
+        
+        # North connections
+        ('Algiers', 'Tizi Ouzou', 100),
+        ('Tizi Ouzou', 'Béjaïa', 60),
+        ('Béjaïa', 'Sétif', 100),
+        ('Sétif', 'Constantine', 120),
+        
+        # Western connections
+        ('Oran', 'Sidi Bel Abbès', 75),
+        ('Sidi Bel Abbès', 'Tlemcen', 60),
+        ('Oran', 'Mostaganem', 80),
+        ('Mostaganem', 'Tiaret', 150),
+        ('Tiaret', 'Djelfa', 200),
+        
+        # Southern connections
         ('Batna', 'Biskra', 120),
         ('Batna', 'Tébessa', 180),
-        ('Djelfa', 'Médéa', 150),
-        ('Djelfa', 'Tiaret', 200),
         ('Biskra', 'Ouargla', 200),
-        ('Algiers', 'Constantine', 430),
+        
+        # Cross connections for better connectivity
         ('Algiers', 'Oran', 430),
-        ('Constantine', 'Oran', 600),
+        ('Sétif', 'Batna', 130),
+        ('Tlemcen', 'Sidi Bel Abbès', 60),
+        ('Tiaret', 'Sidi Bel Abbès', 120),
+        ('Constantine', 'Tébessa', 200),
+        ('Sétif', 'Béjaïa', 100),
+        
+        # Additional connections to ensure full connectivity
+        ('Algiers', 'Constantine', 430),
+        ('Oran', 'Algiers', 430),
+        ('Tlemcen', 'Oran', 170),
+        ('Annaba', 'Tébessa', 150),
+        ('Médéa', 'Tiaret', 180),
+        ('Djelfa', 'Ouargla', 300),
+        
+        # Ensure every city has at least 2-3 connections
+        ('Mostaganem', 'Oran', 80),
+        ('Tizi Ouzou', 'Algiers', 100),
+        ('Blida', 'Algiers', 50),
     ]
     
+    # Add all connections
+    added_edges = set()
     for city1, city2, distance in connections:
         if city1 in ALGERIAN_CITIES and city2 in ALGERIAN_CITIES:
-            G.add_edge(city1, city2, length=distance * 1000)  # Convert to meters
+            edge = tuple(sorted([city1, city2]))
+            if edge not in added_edges:
+                G.add_edge(city1, city2, length=distance * 1000)  # Convert to meters
+                added_edges.add(edge)
+    
+    # Ensure all cities are connected by adding missing connections
+    # For any isolated cities, connect them to their nearest neighbors
+    for city in ALGERIAN_CITIES:
+        if city not in G.nodes() or G.degree(city) == 0:
+            # Find nearest cities and connect
+            distances = []
+            for other_city in ALGERIAN_CITIES:
+                if other_city != city:
+                    dist = calculate_distance(city, other_city)
+                    distances.append((dist, other_city))
+            
+            # Connect to 2 nearest cities
+            distances.sort()
+            for dist, nearest_city in distances[:2]:
+                edge = tuple(sorted([city, nearest_city]))
+                if edge not in added_edges:
+                    G.add_edge(city, nearest_city, length=dist * 1000)
+                    added_edges.add(edge)
+    
+    # Verify connectivity and add additional edges if needed
+    if not nx.is_connected(G):
+        # If graph is not connected, add edges between components
+        components = list(nx.connected_components(G))
+        for i in range(len(components) - 1):
+            # Find closest cities between components
+            min_dist = float('inf')
+            best_edge = None
+            
+            for city1 in components[i]:
+                for city2 in components[i + 1]:
+                    dist = calculate_distance(city1, city2)
+                    if dist < min_dist:
+                        min_dist = dist
+                        best_edge = (city1, city2)
+            
+            if best_edge:
+                G.add_edge(best_edge[0], best_edge[1], length=min_dist * 1000)
     
     return G
 
@@ -288,12 +364,20 @@ def main():
         if map_data['last_object_clicked_popup']:
             clicked_city = map_data['last_object_clicked_popup'].replace('<b>', '').replace('</b>', '')
             if clicked_city in ALGERIAN_CITIES:
-                if st.sidebar.button(f"Set {clicked_city} as Start"):
-                    st.session_state.selected_start = clicked_city
-                    st.experimental_rerun()
-                if st.sidebar.button(f"Set {clicked_city} as End"):
-                    st.session_state.selected_end = clicked_city
-                    st.experimental_rerun()
+                st.info(f"🎯 Clicked on: **{clicked_city}**")
+                
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button(f"🟢 Set as Start", key=f"start_{clicked_city}"):
+                        st.session_state.selected_start = clicked_city
+                        st.success(f"✅ Start city set to {clicked_city}")
+                        st.rerun()
+                
+                with col_btn2:
+                    if st.button(f"🔴 Set as End", key=f"end_{clicked_city}"):
+                        st.session_state.selected_end = clicked_city
+                        st.success(f"✅ End city set to {clicked_city}")
+                        st.rerun()
     
     with col2:
         st.subheader("📊 Path Analysis")
@@ -346,18 +430,43 @@ def main():
                                 if 'nodes_explored' in locals():
                                     st.metric("Nodes Explored", nodes_explored)
                                 
-                                # Display path
-                                st.subheader("🛣️ Route")
+                                # Display detailed path
+                                st.subheader("🛣️ Detailed Route")
                                 if isinstance(path[0], str):
+                                    total_segments = len(path) - 1
+                                    st.info(f"Route passes through {len(path)} cities with {total_segments} segments")
+                                    
+                                    # Calculate segment distances
+                                    segment_distances = []
+                                    for i in range(len(path) - 1):
+                                        if st.session_state.graph.has_edge(path[i], path[i+1]):
+                                            segment_dist = st.session_state.graph[path[i]][path[i+1]]['length'] / 1000
+                                            segment_distances.append(segment_dist)
+                                        else:
+                                            segment_distances.append(0)
+                                    
+                                    # Display each step
                                     for i, city in enumerate(path):
                                         if i == 0:
                                             st.write(f"🟢 **Start:** {city}")
                                         elif i == len(path) - 1:
                                             st.write(f"🔴 **End:** {city}")
+                                            if i > 0 and i-1 < len(segment_distances):
+                                                st.write(f"   ↳ {segment_distances[i-1]:.0f} km from {path[i-1]}")
                                         else:
-                                            st.write(f"📍 {city}")
+                                            st.write(f"📍 **Stop {i}:** {city}")
+                                            if i > 0 and i-1 < len(segment_distances):
+                                                st.write(f"   ↳ {segment_distances[i-1]:.0f} km from {path[i-1]}")
+                                    
+                                    # Show route summary
+                                    st.markdown("---")
+                                    st.write("**Route Summary:**")
+                                    route_text = " → ".join(path)
+                                    st.write(f"📍 {route_text}")
+                                    
                                 else:
                                     st.write(f"Path contains {len(path)} road segments")
+                                    st.info("This path uses the detailed road network with intersections and road segments.")
                                 
                                 # Update map with path
                                 map_with_path = create_interactive_map(
@@ -402,6 +511,62 @@ def main():
         - Limited accuracy
         - Good for demonstration
         """)
+    
+    # Network visualization
+    if st.checkbox("🕸️ Show Network Connectivity"):
+        st.subheader("🗺️ City Network Graph")
+        
+        if st.session_state.graph is None:
+            st.session_state.graph = create_simplified_network()
+        
+        # Create network visualization
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        
+        # Get city positions
+        pos = {}
+        for city in st.session_state.graph.nodes():
+            if city in ALGERIAN_CITIES:
+                lat, lon = ALGERIAN_CITIES[city]
+                pos[city] = (lon, lat)  # longitude, latitude for proper orientation
+        
+        # Draw network
+        nx.draw_networkx_nodes(st.session_state.graph, pos, 
+                              node_color='lightblue', 
+                              node_size=500, ax=ax)
+        
+        nx.draw_networkx_edges(st.session_state.graph, pos, 
+                              edge_color='gray', 
+                              alpha=0.6, ax=ax)
+        
+        nx.draw_networkx_labels(st.session_state.graph, pos, 
+                               font_size=8, ax=ax)
+        
+        # Highlight selected cities if any
+        if st.session_state.selected_start and st.session_state.selected_start in pos:
+            nx.draw_networkx_nodes(st.session_state.graph, pos,
+                                  nodelist=[st.session_state.selected_start],
+                                  node_color='green', node_size=700, ax=ax)
+        
+        if st.session_state.selected_end and st.session_state.selected_end in pos:
+            nx.draw_networkx_nodes(st.session_state.graph, pos,
+                                  nodelist=[st.session_state.selected_end],
+                                  node_color='red', node_size=700, ax=ax)
+        
+        ax.set_title("Algerian Cities Network Connectivity")
+        ax.set_xlabel("Longitude")
+        ax.set_ylabel("Latitude")
+        
+        st.pyplot(fig)
+        
+        # Network statistics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Cities", len(st.session_state.graph.nodes()))
+        with col2:
+            st.metric("Total Connections", len(st.session_state.graph.edges()))
+        with col3:
+            avg_degree = sum(dict(st.session_state.graph.degree()).values()) / len(st.session_state.graph.nodes())
+            st.metric("Avg Connections per City", f"{avg_degree:.1f}")
     
     # Performance comparison
     if st.checkbox("📈 Show Algorithm Comparison"):
